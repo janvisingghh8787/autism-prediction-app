@@ -128,11 +128,15 @@ def user_input():
         if col not in input_df.columns:
             input_df[col] = 0
 
-    for col in FINAL_FEATURES:
+    try:
+        model_features=model.features_name_in_
+    except:
+        model_features= FINAL_FEATURES
+    for col in model_features:
         if col not in input_df.columns:
             input_df[col] = 0
+    input_df = input_df[model_features]
 
-    input_df = input_df[FINAL_FEATURES]
 
     return input_df
 
