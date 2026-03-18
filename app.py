@@ -9,16 +9,29 @@ st.set_page_config(page_title="Autism Predictor", page_icon="🧠", layout="wide
 st.markdown("""
 <style>
 .main {
-    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    background: linear-gradient(135deg, #141E30, #243B55);
 }
-h1 {text-align:center; color:#00E5FF;}
+
+.glass {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 15px;
+}
+
+h1 {
+    text-align:center;
+    color:#00E5FF;
+}
+
 .stButton>button {
     background: linear-gradient(90deg, #00E5FF, #00C9A7);
     color: black;
-    border-radius: 10px;
+    border-radius: 12px;
     height: 3em;
     font-size: 18px;
-    width: 100%;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -35,7 +48,13 @@ ALL_ETHNICITIES = ["White-European", "Black", "Latino", "Asian", "Middle Eastern
 
 # ---------------- LOCATION ----------------
 st.subheader("📍 Enter Your City")
-city = st.text_input("City (Mumbai, Delhi, Pune)")
+cities = [
+    "Mumbai","Delhi","Pune","Bangalore","Hyderabad",
+    "Chennai","Kolkata","Ahmedabad","Jaipur","Lucknow",
+    "Chandigarh","Bhopal","Indore","Nagpur","Surat"
+]
+
+city = st.selectbox("Select your city", cities)
 
 # ---------------- PERSONAL DETAILS ----------------
 st.subheader("👤 Personal Details")
@@ -133,24 +152,48 @@ if st.button("🚀 Predict"):
         <h3>{100-prob:.2f}% Confidence</h3>
         </div>
         """, unsafe_allow_html=True)
+    
+    import matplotlib.pyplot as plt
+    st.subheader("📊 Prediction Breakdown")
+    labels = ["Low ASD Risk", "High ASD Risk"]
+    values = [100 - prob, prob]
+    fig, ax = plt.subplots()
+    ax.pie(values, labels=labels, autopct='%1.1f%%')
+    st.subheader("🧠 Prediction Explanation")
+    if pred == 1:
+        st.markdown("""
+        - High behavioral indicators detected  
+        - Possible difficulty in social interaction  
+        - Recommendation: Consult a specialist  
+        """)
+    else:
+        st.markdown("""
+        - Low behavioral indicators  
+        - Normal interaction patterns  
+         No immediate concern detected  
+        """)
 
     # ---------------- DOCTOR DISPLAY ----------------
     if city:
         city_lower = city.lower()
 
         if city_lower in doctor_db:
+            docs = doctor_db[city_lower]
+        else:
+            docs = doctor_db["mumbai"]  # fallback
             st.subheader("🏥 Recommended Doctors Near You")
 
-            for doc in doctor_db[city_lower]:
+            for doc in docs:
                 st.markdown(f"""
-                <div style='background:#1e293b;padding:15px;border-radius:10px;margin-bottom:10px'>
+                <div class='glass';padding:15px;border-radius:10px;margin-bottom:10px'>
                     <h4 style='color:#00E5FF;'>{doc['name']}</h4>
                     <p>🩺 {doc['specialization']}</p>
                     <p>📍 {doc['address']}</p>
-                    <p>📞 {doc['phone']}</p>
+                    <p>⭐ {doc['rating']} / 5</p>
+                    <p>💬 {doc['review']}</p>
                 </div>
                 """, unsafe_allow_html=True)
-        else:
-            st.warning("⚠️ No doctors found for this city. Try Mumbai, Delhi, or Pune.")
+    else:
+        st.warning("⚠️ No doctors found for this city. Try Mumbai, Delhi, or Pune.")
 
     st.info("⚠️ This is not a medical diagnosis. Consult a healthcare professional.")
