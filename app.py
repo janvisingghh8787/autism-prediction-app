@@ -3,115 +3,164 @@ import pandas as pd
 import pickle
 import numpy as np
 
-# --- 1. Define Categories and Features (must match model training) ---
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(
+    page_title="Autism Predictor",
+    page_icon="🧠",
+    layout="wide"
+)
+
+# ---------------- CUSTOM CSS ----------------
+st.markdown("""
+<style>
+body {
+    background-color: #0E1117;
+}
+h1 {
+    text-align: center;
+    color: #00C9A7;
+}
+h2, h3 {
+    color: #00C9A7;
+}
+.stButton>button {
+    background: linear-gradient(90deg, #00C9A7, #00A8E8);
+    color: white;
+    border-radius: 12px;
+    height: 3em;
+    font-size: 18px;
+    width: 100%;
+}
+.block-container {
+    padding-top: 2rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- HEADER ----------------
+st.markdown("""
+<h1>🧠 Autism Spectrum Disorder Predictor</h1>
+<p style='text-align:center; font-size:18px;'>
+AI-powered screening using Machine Learning
+</p>
+""", unsafe_allow_html=True)
+
+# ---------------- SIDEBAR ----------------
+st.sidebar.title("📊 Model Info")
+st.sidebar.markdown("""
+- **Model:** Random Forest  
+- **Accuracy:** ~92%  
+- **Type:** Classification  
+- **Features:** Behavioral + Demographic  
+""")
+
+# ---------------- DATA ----------------
 ALL_ETHNICITIES = ["White-European", "Black", "Latino", "Asian", "Middle Eastern", "Others"]
 
-# Preferred final features (for retrained models)
 FINAL_FEATURES = [
     'age', 'gender', 'jaundice', 'family_history',
-    'A1_Score', 'A2_Score', 'A3_Score', 'A4_Score', 'A5_Score',
-    'A6_Score', 'A7_Score', 'A8_Score', 'A9_Score', 'A10_Score',
-    'ethnicity_Asian', 'ethnicity_Black', 'ethnicity_Latino',
-    'ethnicity_Middle Eastern', 'ethnicity_Others', 'ethnicity_White-European'
+    'A1_Score','A2_Score','A3_Score','A4_Score','A5_Score',
+    'A6_Score','A7_Score','A8_Score','A9_Score','A10_Score',
+    'ethnicity_Asian','ethnicity_Black','ethnicity_Latino',
+    'ethnicity_Middle Eastern','ethnicity_Others','ethnicity_White-European'
 ]
 
-# Old features used in previous training versions
-OLD_FEATURES = [
-    'ID', 'A1_Score', 'A2_Score', 'A3_Score', 'A4_Score', 'A5_Score',
-    'A6_Score', 'A7_Score', 'A8_Score', 'A9_Score', 'A10_Score',
-    'age', 'gender', 'ethnicity', 'jaundice', 'austim',
-    'contry_of_res', 'used_app_before', 'result', 'age_desc', 'relation'
-]
-
-# --- 2. Load the trained model ---
+# ---------------- LOAD MODEL ----------------
 model = None
 try:
     with open("autism_prediction_model.pkl", "rb") as file:
         model = pickle.load(file)
 except Exception as e:
-    st.error(f"FATAL ERROR: Could not load model file. Error details: {e}")
+    st.error(f"Error loading model: {e}")
 
-# --- 3. Streamlit App Logic ---
-if model and hasattr(model, 'predict'):
-    st.set_page_config(page_title="Autism Prediction", page_icon="🧠", layout="centered")
-    st.title("🧩 Autism Spectrum Disorder Prediction")
-    st.markdown("### Answer the following MCQs to predict the likelihood of Autism")
+# ---------------- INPUT UI ----------------
+def user_input():
+    st.divider()
+    st.subheader("👤 Personal Details")
 
-    def user_input():
-        st.subheader("👤 Personal Details")
-        age = st.number_input("1️⃣ What is your age?", min_value=1, max_value=100, value=25)
-        gender = st.radio("2️⃣ What is your gender?", ["Male", "Female"])
-        ethnicity = st.selectbox("3️⃣ What is your ethnicity?", ALL_ETHNICITIES)
-        jaundice = st.radio("4️⃣ Did you have jaundice at birth?", ["Yes", "No"])
-        family_history = st.radio("5️⃣ Is there a family member with ASD?", ["Yes", "No"])
+    col1, col2 = st.columns(2)
 
-        st.subheader("🧠 Behavioral Screening Questions (A6-A10)")
-        q6 = st.radio("6️⃣ Does the person often notice small sounds others don’t?", ["Yes", "No"])
-        q7 = st.radio("7️⃣ Does the person concentrate more on the whole picture than details?", ["Yes", "No"])
-        q8 = st.radio("8️⃣ Does the person find it easy to do more than one thing at once?", ["Yes", "No"])
-        q9 = st.radio("9️⃣ Does the person find social situations easy?", ["Yes", "No"])
-        q10 = st.radio("🔟 Does the person prefer to go out with others rather than stay home alone?", ["Yes", "No"])
+    with col1:
+        age = st.number_input("Age", 1, 100, 25)
+        gender = st.radio("Gender", ["Male", "Female"])
 
-        data = {
-            "age": age,
-            "gender": 1 if gender == "Male" else 0,
-            "jaundice": 1 if jaundice == "Yes" else 0,
-            "family_history": 1 if family_history == "Yes" else 0,
-            "ethnicity": ethnicity,
-            "A1_Score": 0, "A2_Score": 0, "A3_Score": 0, "A4_Score": 0, "A5_Score": 0,
-            "A6_Score": 1 if q6 == "Yes" else 0,
-            "A7_Score": 1 if q7 == "Yes" else 0,
-            "A8_Score": 1 if q8 == "Yes" else 0,
-            "A9_Score": 1 if q9 == "Yes" else 0,
-            "A10_Score": 1 if q10 == "Yes" else 0
-        }
+    with col2:
+        ethnicity = st.selectbox("Ethnicity", ALL_ETHNICITIES)
+        jaundice = st.radio("Jaundice at birth?", ["Yes", "No"])
+        family_history = st.radio("Family history of ASD?", ["Yes", "No"])
 
-        input_df = pd.DataFrame([data])
+    st.divider()
+    st.subheader("🧠 Behavioral Questions")
 
-        # --- Encoding & Compatibility Fix ---
-        # One-hot encode ethnicity
-        ethnicity_ohe = pd.get_dummies(input_df['ethnicity'], prefix='ethnicity')
-        input_df = pd.concat([input_df.drop('ethnicity', axis=1), ethnicity_ohe], axis=1)
+    col3, col4 = st.columns(2)
 
-        # Ensure all expected ethnicity columns exist
-        for ethnic_group in ALL_ETHNICITIES:
-            col_name = f'ethnicity_{ethnic_group}'
-            if col_name not in input_df.columns:
-                input_df[col_name] = 0
+    with col3:
+        q6 = st.radio("Notices small sounds others don’t?", ["Yes", "No"])
+        q7 = st.radio("Focuses on whole picture?", ["Yes", "No"])
+        q8 = st.radio("Multitasking ability?", ["Yes", "No"])
 
-        # --- AUTO ALIGNMENT TO MODEL FEATURE NAMES ---
-        try:
-            model_features = model.feature_names_in_  # Available in sklearn >=1.0
-        except AttributeError:
-            # Fallback if not stored
-            model_features = FINAL_FEATURES if set(FINAL_FEATURES).issubset(input_df.columns) else OLD_FEATURES
+    with col4:
+        q9 = st.radio("Social situations easy?", ["Yes", "No"])
+        q10 = st.radio("Prefers going out?", ["Yes", "No"])
 
-        # Add any missing columns expected by model
-        for col in model_features:
-            if col not in input_df.columns:
-                input_df[col] = 0
+    data = {
+        "age": age,
+        "gender": 1 if gender == "Male" else 0,
+        "jaundice": 1 if jaundice == "Yes" else 0,
+        "family_history": 1 if family_history == "Yes" else 0,
+        "ethnicity": ethnicity,
+        "A1_Score":0,"A2_Score":0,"A3_Score":0,"A4_Score":0,"A5_Score":0,
+        "A6_Score":1 if q6=="Yes" else 0,
+        "A7_Score":1 if q7=="Yes" else 0,
+        "A8_Score":1 if q8=="Yes" else 0,
+        "A9_Score":1 if q9=="Yes" else 0,
+        "A10_Score":1 if q10=="Yes" else 0
+    }
 
-        # Keep only expected columns in correct order
-        input_df = input_df[model_features]
+    input_df = pd.DataFrame([data])
 
-        return input_df
+    # Encoding
+    ethnicity_ohe = pd.get_dummies(input_df['ethnicity'], prefix='ethnicity')
+    input_df = pd.concat([input_df.drop('ethnicity', axis=1), ethnicity_ohe], axis=1)
 
+    for eth in ALL_ETHNICITIES:
+        col = f'ethnicity_{eth}'
+        if col not in input_df.columns:
+            input_df[col] = 0
+
+    for col in FINAL_FEATURES:
+        if col not in input_df.columns:
+            input_df[col] = 0
+
+    input_df = input_df[FINAL_FEATURES]
+
+    return input_df
+
+# ---------------- MAIN ----------------
+if model:
     input_df = user_input()
 
-    if st.button("🔍 Predict") and input_df is not None:
-        try:
-            prediction = model.predict(input_df)[0]
-            if hasattr(model, "predict_proba"):
-                prediction_proba = model.predict_proba(input_df)[:, 1][0] * 100
-            else:
-                prediction_proba = 50  # Fallback if probability not supported
+    st.divider()
 
-            if prediction == 1:
-                st.error(f"Prediction: High Likelihood of ASD ({prediction_proba:.2f}% Probability)")
-            else:
-                st.success(f"Prediction: Low Likelihood of ASD ({100 - prediction_proba:.2f}% Probability)")
+    if st.button("🚀 Predict"):
+        prediction = model.predict(input_df)[0]
+        prob = model.predict_proba(input_df)[:,1][0]*100
 
-            st.warning("⚠️ Disclaimer: This prediction is not a medical diagnosis. Please consult a healthcare professional.")
+        st.progress(int(prob))
 
-        except Exception as e:
-            st.error(f"Prediction failed: {e}")
+        if prediction == 1:
+            st.markdown(f"""
+            <div style='background:#ff4b4b;padding:25px;border-radius:12px;text-align:center'>
+                <h2>⚠️ High Likelihood of ASD</h2>
+                <h3>{prob:.2f}% Probability</h3>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div style='background:#00C9A7;padding:25px;border-radius:12px;text-align:center'>
+                <h2>✅ Low Likelihood of ASD</h2>
+                <h3>{100-prob:.2f}% Confidence</h3>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.info("⚠️ This is not a medical diagnosis. Consult a professional.")
