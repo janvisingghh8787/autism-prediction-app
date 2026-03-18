@@ -159,6 +159,7 @@ if st.button("🚀 Predict"):
     values = [100 - prob, prob]
     fig, ax = plt.subplots()
     ax.pie(values, labels=labels, autopct='%1.1f%%')
+    st.pyplot(fig)
     st.subheader("🧠 Prediction Explanation")
     if pred == 1:
         st.markdown("""
