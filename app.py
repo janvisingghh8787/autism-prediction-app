@@ -263,32 +263,62 @@ def get_stars(rating):
 
 def fetch_doctors_google(city: str, api_key: str):
     """
-    Use Google Places Text Search to find top 3 autism specialists in a city.
-    Returns list of doctor dicts with name, address, phone, rating, types.
+    Search for autism/child neurology specialists using multiple fallback queries.
+    Removes the restrictive 'type' filter which causes empty results for niche searches.
     """
-    search_query = f"autism specialist doctor in {city} India"
-    text_search_url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
-    params = {
-        "query": search_query,
-        "key": api_key,
-        "type": "doctor",
-        "language": "en",
-    }
-    try:
-        resp = requests.get(text_search_url, params=params, timeout=10)
-        resp.raise_for_status()
-        results = resp.json().get("results", [])[:5]  # grab top 5, filter to 3 below
-    except Exception as e:
-        return None, str(e)
+    # Ordered from most specific → broadest fallback
+    queries = [
+        f"autism specialist {city}",
+        f"child neurologist autism {city}",
+        f"child psychiatrist {city}",
+        f"pediatric neurologist {city}",
+        f"developmental pediatrician {city}",
+    ]
 
+    text_search_url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+    raw_results = []
+    seen_ids = set()
+
+    for query in queries:
+        if len(raw_results) >= 5:
+            break
+        params = {
+            "query": query,
+            "key": api_key,
+            "language": "en",
+            # NO 'type' filter — it clashes with text search and kills results
+        }
+        try:
+            resp = requests.get(text_search_url, params=params, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+
+            # Surface API errors (INVALID_REQUEST, REQUEST_DENIED, etc.)
+            status = data.get("status", "")
+            if status not in ("OK", "ZERO_RESULTS"):
+                return None, f"Google API error: {status} — {data.get('error_message', '')}"
+
+            for place in data.get("results", []):
+                pid = place.get("place_id")
+                if pid and pid not in seen_ids:
+                    seen_ids.add(pid)
+                    raw_results.append(place)
+                if len(raw_results) >= 5:
+                    break
+        except Exception as e:
+            return None, str(e)
+
+    if not raw_results:
+        return [], None
+
+    # Fetch detailed info for each place
     doctors = []
-    for place in results:
+    details_url = "https://maps.googleapis.com/maps/api/place/details/json"
+    for place in raw_results[:5]:
         place_id = place.get("place_id")
-        # Fetch details (phone number + website)
-        details_url = "https://maps.googleapis.com/maps/api/place/details/json"
         det_params = {
             "place_id": place_id,
-            "fields": "name,formatted_address,formatted_phone_number,rating,user_ratings_total,types,editorial_summary,opening_hours",
+            "fields": "name,formatted_address,formatted_phone_number,rating,user_ratings_total,editorial_summary,opening_hours",
             "key": api_key,
         }
         try:
@@ -299,13 +329,13 @@ def fetch_doctors_google(city: str, api_key: str):
             detail = {}
 
         doctors.append({
-            "name": detail.get("name") or place.get("name", "Unknown"),
-            "address": detail.get("formatted_address") or place.get("formatted_address", "N/A"),
-            "phone": detail.get("formatted_phone_number", "Not listed"),
-            "rating": detail.get("rating") or place.get("rating"),
+            "name":          detail.get("name") or place.get("name", "Unknown"),
+            "address":       detail.get("formatted_address") or place.get("formatted_address", "N/A"),
+            "phone":         detail.get("formatted_phone_number") or "Not listed",
+            "rating":        detail.get("rating") or place.get("rating"),
             "total_ratings": detail.get("user_ratings_total") or place.get("user_ratings_total", 0),
-            "summary": detail.get("editorial_summary", {}).get("overview", ""),
-            "open_now": (detail.get("opening_hours") or {}).get("open_now"),
+            "summary":       (detail.get("editorial_summary") or {}).get("overview", ""),
+            "open_now":      (detail.get("opening_hours") or {}).get("open_now"),
         })
 
         if len(doctors) == 3:
@@ -481,9 +511,10 @@ if predict_btn:
                 doctors, error = fetch_doctors_google(city, api_key)
 
             if error:
-                st.error(f"Could not fetch doctors: {error}")
+                st.error(f"API Error: {error}")
+                st.info("Fixes: Check API key is correct, Places API is enabled in Google Cloud, and billing is active (free tier works).")
             elif not doctors:
-                st.warning(f"No results found for {city}. Try a nearby major city.")
+                st.warning(f"No specialists found for {city}. Try a nearby metro like Mumbai, Delhi, Pune or Bangalore.")
             else:
                 for i, doc in enumerate(doctors):
                     rating_display = get_stars(doc["rating"]) if doc["rating"] else "No rating yet"
